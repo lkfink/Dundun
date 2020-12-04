@@ -1,0 +1,559 @@
+---
+title: "Dundun Modeling"
+output: html_notebook
+author: Lauren K. Fink, with input from Pauline Larrouy-Maestri
+contact: lauren.fink@ae.mpg.de
+---
+
+This notebook contains code to model data from the dundun project and generate figures. 
+It produces all perception-related figures from the paper (i.e., heatmap, confidence histograms, familiarity boxplot, logistic regression model), as well as the correlations among acoustic features (supplemental information). Please note that Tina Roeske analyzed all acoustic features (Figs. 1, 2, 3) in MATLAB. 
+
+## Load required packages 
+```{r message=FALSE}
+library(lme4)
+library(lmerTest)
+library(car)
+library(sjPlot)
+library(r2glmm)
+library(sjmisc)
+library(sjlabelled)
+library(effsize)
+library(ggplot2)
+library(nortest)
+library(dplyr)
+library(tidyverse)
+library(readxl)
+library(nortest)
+library(PerformanceAnalytics)
+library(MuMIn)
+library(caret)
+library(magick)
+library(PEIP)
+library(gplots)
+library(heatmap.plus)
+```
+
+# Load required data and clean it up a bit 
+NOTE: USER TODO: set files paths appropriately on your machine
+```{r}
+# load participant and stimulus data
+pmeans = read_excel("~/Documents/Projects/dundun/Data/dundun_participantMeans_200804.xls")
+pinfo = read_excel("~/Documents/Projects/dundun/Data/participant_info.xlsx")
+smeans = read.csv("~/Documents/Projects/dundun/Data/dundun_acoustFeat_means_absDiffs.csv")
+pall = read_excel("~/Documents/Projects/dundun/Data/Dundun_participants_categorization.xlsx")
+pconf = read_excel("~/Documents/Projects/dundun/Data/dundun_confidence.xlsx")
+
+# Set output path for figures
+outpath = "~/Documents/Projects/dundun/Figures/"
+op = 0 #flag whether to output plots to file (1) or plot them in line
+
+########################################################################################
+# clean up and add a few columns we might want to use
+########################################################################################
+
+#pall = subset(pall, select = -c(...1) ) # don't need first column with participant numbers (as index corresponeds to participant)
+colnames(pall)[1] = 'Participant' 
+colnames(smeans)[1] = 'Stimulus' 
+
+# add other metrics of interest to pmeans
+pmeans$bias = -(pmeans$Hit_rate_H + pmeans$FA_rate_F)/2
+pmeans$accuracy = 100 * ((pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)`)/(pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)` + pmeans$False_Alarm + pmeans$Miss))
+pmeans$FNR_akaMiss = 100 * (pmeans$Miss / (pmeans$Miss + pmeans$Hits_Music))
+pmeans$FPR_akaFA = 100 * (pmeans$False_Alarm / (pmeans$False_Alarm + pmeans$`Correct_Rejection (Speech)`))
+
+# sum current and past instrument playing to get one measure of instrument playing 
+pinfo$INST = pinfo$PAST.INST + pinfo$CURRENT.INST
+
+########################################################################################
+# clean up language categories
+########################################################################################
+
+# first do some basic cleaning
+pinfo$NAT.LANG = tolower(pinfo$NAT.LANG)
+langs = pinfo$NAT.LANG
+print(unique(langs))
+
+# we can see there are many instances of Yoruba.. let's make those all identical
+langs[langs=="yoruba language"]<-"yoruba"
+langs[langs=="egun yoruba"]<-"yoruba"
+langs[langs=="german and portugese"]<-"portuguese"
+langs[langs=="english and mandarin"]<-"mandarin"
+# or maybe let these two be unique? ^^
+
+print(cat("\nCleaned Languages"))
+print(unique(langs))
+
+#replace our original column
+pinfo$NAT.LANG = langs
+
+# add a column for language family, in case want to report that way
+# initialize column
+pinfo$NAT.LANG.FAM = langs # initialize column
+pmeans$Lang_cols = langs
+
+# define language families
+nc = c("bette", "yoruba", "agbor", "igbo", "ishan", "efik", "ibibio")
+ie = c("german", "albanian", "serbian", "portoguese", "assamese", "english")
+st = "mandarin"
+aa = "hebrew"
+
+# loop through each language entry and assign to family
+# Also create binary column of 0s and 1s for Niger-Congo language, in case not enough variance in others
+pinfo$NC_binary = pinfo$FAMILIARITY # just create dummy col
+for (i in 1:length(pinfo$NAT.LANG.FAM)){
+  
+  if (pinfo$NAT.LANG.FAM[i] %in% nc){
+    pinfo$NAT.LANG.FAM[i] = "Niger-Congo"
+    pmeans$Lang_cols[i] = "#3f0d0d"
+    pinfo$NC_binary[i] = 1
+  }
+  else if (pinfo$NAT.LANG.FAM[i] %in% ie){
+    pinfo$NAT.LANG.FAM[i] = "Indo-European"
+    pmeans$Lang_cols[i] = "#b125ae"
+    pinfo$NC_binary[i] = 0
+  }
+  else if (pinfo$NAT.LANG.FAM[i] %in% st){
+    pinfo$NAT.LANG.FAM[i] = "Sino-Tibetan"
+    pmeans$Lang_cols[i] = "#e3d97d"
+    pinfo$NC_binary[i] = 0
+  }
+  else if (pinfo$NAT.LANG.FAM[i] %in% aa){
+    pinfo$NAT.LANG.FAM[i] = "Afro-Asiatic"
+    pmeans$Lang_cols[i] = "#7de39a"
+    pinfo$NC_binary[i] = 0
+  }
+  else {
+    pinfo$NAT.LANG.FAM[i] = "No response"
+    pmeans$Lang_cols[i] = "white"
+    pinfo$NC_binary[i] = 0
+  }
+}
+
+# create binary col for yoruba in case we want to look just at that
+pinfo$yoruba_binary = pinfo$FAMILIARITY 
+for (i in 1:length(pinfo$NAT.LANG.FAM)){
+  if (pinfo$NAT.LANG[i] == "yoruba"){
+    pinfo$yoruba_binary[i] = 1
+  }
+  else{
+    pinfo$yoruba_binary[i] = 0
+  }
+}
+
+########################################################################################
+# define colors for future plotting
+########################################################################################
+
+pmeans$Fam_cols = pmeans$Familiarity
+pmeans$Fam_cols[pmeans$Fam_cols == 1] ='gray'
+pmeans$Fam_cols[pmeans$Fam_cols == 2] ='#e69d00'
+
+########################################################################################
+# Create long form table of participant responses for future modeling
+########################################################################################
+
+# convert into long form 
+prating_long = pall %>%
+  pivot_longer(!Participant, names_to = "Stimulus", values_to = "Rating")
+
+pconf_long = pconf %>%
+  pivot_longer(!Participant, names_to = "Stimulus", values_to = "Confidence")
+
+# combine ratings and confidence into one table
+long_all = prating_long
+long_all$Confidence = pconf_long$Confidence
+
+# add column with number for class of stim
+musInds = grep("M", long_all$Stimulus)
+speechInds = grep("S", long_all$Stimulus)
+long_all$Class = NA
+long_all$Class[musInds] = 2
+long_all$Class[speechInds] = 1
+
+# add column for error
+long_all$Error = NA
+long_all$Error = long_all$Class - long_all$Rating
+
+# normalize confidence by participant?
+long_all$Conf_norm = NA
+
+long_all = long_all %>% 
+  group_by(Participant) %>%
+  mutate(Conf_norm = (Confidence - mean(Confidence))/std(Confidence))
+
+# do left inner joins on other participant and stimulus level features we might want
+pinfo$Participant = rownames(pinfo)
+long_all = merge(x = long_all, y = pinfo, by = "Participant", all.x = TRUE)
+
+# merge stimulus info into long table
+long_all = merge(x = long_all, y = smeans, by = "Stimulus", all.x = TRUE)
+```
+There are 15 unique languages represented in the dataset ("undecided" does not count)
+
+
+## Analyze participant responses
+The block below generates the subplots used to create Figure X in the paper.
+- heatmap (A), numbers for the table (B), d' plot / familiarity plot (C)
+```{r}
+########################################################################################
+# Print out matrix of different error types
+########################################################################################
+
+# look at total errors in subs vs stims
+# need to just get to 0 (no error) or 1 (error) 
+error_pall = subset(pall, select = -c(Participant) )
+error_pall[,1:15] = error_pall[,1:15] - 2
+error_pall[,16:30] = error_pall[,16:30] - 1
+error_pall = abs(error_pall)
+
+# get some summary statistics
+sub_errors = rowSums(error_pall)
+music_errors = colMeans(error_pall[1:15])
+speech_errors = colMeans(error_pall[16:30])
+pmeans$sub_errors = sub_errors
+pall$sub_errors = sub_errors
+stim_errors = colSums(error_pall[1:30])
+pmeans = pmeans[order(pmeans$sub_errors),]
+
+# print out number of absolute errors
+print("Range of confusions for each participant")
+print(range(sub_errors))
+print("Range of confusions for each stimulus")
+print(range(stim_errors))
+
+print("Number of subs with no errors:")
+print(sum(sub_errors == 0))
+
+# print out total errors by type
+# can get this from table of means already provided by Pauline
+print("Speech / Speech")
+print(sum(pmeans$`Correct_Rejection (Speech)`))
+
+print("Speech / Music")
+print(sum(pmeans$False_Alarm))
+
+print("Music / Speech")
+print(sum(pmeans$Miss))
+
+print("Music / Music")
+print(sum(pmeans$Hits_Music))
+
+print("Average acccuracy across participants")
+print(mean(pmeans$accuracy))
+print(sd(pmeans$accuracy))
+
+print("Average FNR across participants")
+print(mean(pmeans$FNR_akaMiss))
+print(sd(pmeans$FNR_akaMiss))
+
+print("Average FPR across participants")
+print(mean(pmeans$FPR_akaFA))
+print(sd(pmeans$FPR_akaFA))
+
+# ahh but these are susceptible to extremes, so maybe better to go with the normalized rates Pauline already computed?
+# Seems they are identical.. 
+print("Average miss rate (norm) across participants")
+print(mean(pmeans$Miss_rate))
+print(sd(pmeans$Miss_rate))
+
+print("Average FA rate (norm) across participants")
+print(mean(pmeans$FA_rate_F))
+print(sd(pmeans$FA_rate_F))
+
+print("Average d' across participants")
+print(mean(pmeans$d))
+print(sd(pmeans$d))
+
+# run t-test on d' for familiar vs. unfamilar participants
+tres = t.test(pmeans$d[pmeans$Familiarity==2], pmeans$d[pmeans$Familiarity==1], paired=FALSE)
+d = cohen.d(pmeans$d[pmeans$Familiarity==2], pmeans$d[pmeans$Familiarity==1], paired=FALSE, within=FALSE)
+print(tres)
+print(d)
+print("Difference between means")
+print(tres$estimate[1] - tres$estimate[2])
+
+```
+
+```{r}
+# t-tests for acoustic features
+i = 2
+for (col in smeans[,-1]){
+  print(colnames(smeans[i]))
+  # 1:15 are music, 16:30 are speech 
+  tres = t.test(col[1:15], col[16:30], paired=FALSE)
+  print(tres)
+  print("Mean diff")
+  print((tres$estimate[1]-tres$estimate[2]))
+  print("Eff size")
+  d = cohen.d(col[1:15], col[16:30], paired=FALSE, within=FALSE)
+  print(d)
+  print((tres$estimate[1]-tres$estimate[2])/sd(col))
+  i = i+1
+  print("-")
+  print("-")
+  print("-")
+}
+
+```
+
+
+```{r}
+########################################################################################
+# analyze confidence
+# conf_means_stims = colMeans(pconf[,-1])
+# print("Mean confidence:")
+
+# quick function to make plot we want
+plot_conf_fam_hist = function(unfam, fam){
+  # should feed unfam$confidence and fam$confidence
+  uf = hist(unfam, freq=FALSE, breaks = seq(from=.5, to=4.5, by=1), col=rgb(.192, .192, .192, .5), main="", xlab="Confidence", ylim=c(0,1))
+  
+  f = hist(fam, freq=FALSE, breaks = seq(from=.5, to=4.5, by=1), col=rgb(.9,.62, 0, .5), add=TRUE, main="", xlab="Confidence", ylim=c(0,1)) 
+}
+
+########################################################################################
+# look at avg conf for each error type
+########################################################################################
+
+# music --> speech (Miss)
+if (op) {tiff(paste(outpath, "dundun_conf_MS.tiff", sep=""), units="in", width=3, height=3, res=300)}
+hist(long_all$Confidence[long_all$Error == 1], breaks = seq(from=.5, to=4.5, by=1))
+#axis(side=1, at=seq(0,120,40), labels=c(0,40,80, 120))
+print("music / speech")
+print(mean(long_all$Confidence[long_all$Error == 1]))
+
+# add familiarity to plot
+d1 = long_all[(long_all$Error == 1) & (long_all$FAMILIARITY==1),]
+d2 = long_all[(long_all$Error == 1) & (long_all$FAMILIARITY==2),]
+if (op){tiff(paste(outpath, "dundun_confFAM_MS.tiff", sep=""), units="in", width=4, height=3, res=300)}
+plot_conf_fam_hist(d1$Confidence, d2$Confidence)
+
+
+########################################################################################
+# speech --> music (FA)
+if (op){tiff("dundun_conf_SM.tiff", units="in", width=3, height=3, res=300)}
+hist(long_all$Confidence[long_all$Error == -1], breaks = seq(from=.5, to=4.5, by=1))
+print("speech / music")
+print(mean(long_all$Confidence[long_all$Error == -1]))
+
+d1 = long_all[(long_all$Error == -1) & (long_all$FAMILIARITY==1),]
+d12 = long_all[(long_all$Error == -1) & (long_all$FAMILIARITY==2),]
+if (op){tiff(paste(outpath, "dundun_confFAM_SM.tiff", sep=""), units="in", width=4, height=3, res=300)}
+plot_conf_fam_hist(d1$Confidence, d2$Confidence)
+
+
+########################################################################################
+# hits music (Hit)
+if (op){tiff("dundun_conf_MM.tiff", units="in", width=3, height=3, res=300)}
+hist(long_all$Confidence[(long_all$Error == 0) & (long_all$Class == 2)], breaks = seq(from=.5, to=4.5, by=1))
+print("music / music")
+print(mean(long_all$Confidence[(long_all$Error == 0) & (long_all$Class == 2)]))
+
+
+d1 = long_all[(long_all$Error == 0) & (long_all$Class == 2) & long_all$FAMILIARITY == 1,]
+d2 = long_all[(long_all$Error == 0) & (long_all$Class == 2) & long_all$FAMILIARITY == 2,]
+if (op){tiff(paste(outpath, "dundun_confFAM_MM.tiff", sep=""), units="in", width=4, height=3, res=300)}
+plot_conf_fam_hist(d1$Confidence, d2$Confidence)
+
+
+########################################################################################
+# hits speech (correct rejections)
+if (op){tiff("dundun_conf_SS.tiff", units="in", width=3, height=3, res=300)}
+hist(long_all$Confidence[(long_all$Error == 0) & (long_all$Class == 1)], breaks = seq(from=.5, to=4.5, by=1))
+print("speech / speech")
+print(mean(long_all$Confidence[(long_all$Error == 0) & (long_all$Class == 1)]))
+
+if (op){tiff(paste(outpath, "dundun_confFAM_SS.tiff", sep=""), units="in", width=4, height=3, res=300)}
+d1 = long_all[(long_all$Error == 0) & (long_all$Class == 1) & long_all$FAMILIARITY == 1,]
+d2 = long_all[(long_all$Error == 0) & (long_all$Class == 1) & long_all$FAMILIARITY == 2,]
+plot_conf_fam_hist(d1$Confidence, d2$Confidence)
+
+```
+
+```{r}
+########################################################################################
+# Create heatmap
+########################################################################################
+
+# sort matrices by numbers of errors 
+pall = pall[order(pall$sub_errors),]
+for_hm = pall[,-c(1,ncol(pall))]
+mean_stim_errors = colMeans(error_pall)
+for_hm = for_hm[,c(order(music_errors), order(speech_errors)+15)]
+
+if (op){tiff("dundunPerception_allSubs4.tiff", units="in", width=15, height=27, res=300)}
+heatmap.2(data.matrix(for_hm), 
+        scale="none", 
+        xlab="", ylab="", 
+        col=c("red", "blue"), 
+        dendrogram="none", #"col",
+        Rowv=FALSE,
+        trace="none",
+        RowSideColors = pmeans$Fam_cols, 
+        key=FALSE,
+        density.info = "none",
+        cexCol = 2,
+        labRow = FALSE,
+        Colv=FALSE,
+)
+
+
+########################################################################################
+# Create box plot (with underlying points) for d'
+########################################################################################
+
+# recode familiarity to display how we want on plot
+pmeans$Familiarity[pmeans$Familiarity==1]<-"Unfamiliar"
+pmeans$Familiarity[pmeans$Familiarity==2]<-"Familiar"
+pmeans$Familiarity = as.factor(pmeans$Familiarity)
+
+if (op){tiff("dundun_dPrime.tiff", units="in", width=5, height=7, res=300)}
+pmeans %>%
+  ggplot( aes(x=Familiarity, y=d, group=Familiarity, fill=Familiarity, color = Familiarity)) +
+    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
+    scale_color_manual(values=c("black", "black")) +
+    scale_fill_manual(values=c("#e69d00", "grey")) +
+    geom_jitter(size=2, alpha=0.3) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      text = element_text(size=20, color="black"),
+      panel.grid.minor.y = element_blank(),
+    ) +
+  
+    xlab("") +
+    ylab("d'")
+```
+
+
+
+
+# Build predictive model
+We ultimately want to predict participants' perception from the acoustic and participant features. Therefore we first need to get a sense of the relationships among predictors. 
+
+#### Check for correlations among acoustic features
+```{r}
+# remove ratio diff and other columns we don't need 
+acoust_feats = smeans[ , -which(names(smeans) %in% c("Filename","Stimulus", "Category", "ratioDiff"))] # drop label columns and ones not using
+# rename cols for how we want to display in fig
+acoust_feats = acoust_feats %>% rename(intsensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o)
+png("dundun_acousticCorrs.png", units="in", width=11, height=8, res=300)
+chart.Correlation(acoust_feats, histogram=TRUE, pch=25, text.panel=labs)
+```
+Amp diff has a very high correlation with o2o and amp. Might need to get rid. Will check VIFs.  
+
+
+```{r}
+# re-code some variables for model
+long_all$Rating = long_all$Rating -1 # subtract 1 to get binary 0 (speech) 1 (music)
+long_all$FAMILIARITY = long_all$FAMILIARITY-1 # again subtract 1 so binary
+long_all$INST = long_all$INST -2 # subtract 2 so logically have 0,1,2
+long_all$Confidence = long_all$Confidence-1 # again to have scale start at 0 no conf
+# Center these person level vars? No because it would confuse interpretation
+
+# Scale acoustic features
+# NOTE: Tina has already scaled acoustic features between 2nd and 98th percentiles in Matlab. However, we still get scale warnings if we include them the way they are.. so.. 
+long_all$amp = scale(long_all$amp, center=TRUE, scale=TRUE)
+long_all$ampDiff = scale(long_all$ampDiff, center=TRUE, scale=TRUE)
+long_all$ent = scale(long_all$ent, center=TRUE, scale=TRUE)
+long_all$entDiff = scale(long_all$entDiff, center=TRUE, scale=TRUE)
+long_all$pitch = scale(long_all$pitch, center=TRUE, scale=TRUE)
+long_all$pitchDiff = scale(long_all$pitchDiff, center=TRUE, scale=TRUE)
+long_all$ratio = scale(long_all$ratio, center=TRUE, scale=TRUE)
+long_all$ratioDiff = scale(long_all$ratioDiff, center=TRUE, scale=TRUE)
+long_all$o2o = scale(long_all$o2o, center=TRUE, scale=TRUE)
+long_all$AMS_peak = scale(long_all$AMS_peak, center=TRUE, scale=TRUE)
+# NOTE: Let's not use ratioDiff because there is confusion from Tina (see Matlab code / email) about what that is.
+
+# model without familiarity interactions   
+# lr <- glmer(Rating ~ FAMILIARITY + Confidence +
+#               amp + ampDiff + pitch + pitchDiff + ent + entDiff + o2o + ratio + 
+#               AMS_peak + (1|Stimulus) + (1|Participant), 
+#              data=long_all,
+#              family=binomial(link="logit"),
+#              na.action=na.exclude,
+#              control=glmerControl(optimizer="bobyqa",
+#                                   optCtrl=list(maxfun=2e5)))
+# summary(lr)
+# print(car::vif(lr))
+
+# full model with familiarity interactions
+# lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + entDiff + ampDiff + ampDiff*FAMILIARITY + pitchDiff + pitchDiff*FAMILIARITY + entDiff*FAMILIARITY + o2o + o2o*FAMILIARITY + ratio + ratio*FAMILIARITY +(1|Stimulus) + (1|Participant), 
+#             data=long_all,
+#             family=binomial(link="logit"),
+#             na.action=na.exclude,
+#             control=glmerControl(optimizer="bobyqa",
+#                                  optCtrl=list(maxfun=2e5)))
+# summary(lr)
+# print(car::vif(lr))
+
+# final with terms with high VIF deleted
+lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + + pitchDiff + pitchDiff*FAMILIARITY + entDiff + entDiff*FAMILIARITY + entDiff*FAMILIARITY + ratio + ratio*FAMILIARITY +(1|Stimulus) + (1|Participant), 
+            data=long_all,
+            family=binomial(link="logit"),
+            na.action=na.exclude,
+            control=glmerControl(optimizer="bobyqa",
+                                 optCtrl=list(maxfun=2e5)))
+
+summary(lr)
+
+long_all$p <- as.numeric(predict(lr, type="response")>0.5)
+print("Prediction Accuracy:")
+print(mean(long_all$p==long_all$Rating))
+table(long_all$p,long_all$Rating)
+
+print(car::vif(lr))
+```
+
+None of our VIFs are over 5 so we should be ok to keep all predictors.
+Now let's make some plots 
+```{r}
+# plot residuals
+plot(lr)
+
+# plot fixed effect estimates + CIs
+plot_model(lr, show.values = TRUE, type = "est", value.offset = .4)
+
+# plot marginal effects of specifc predictors
+plot_model(lr, type = "pred", terms = "amp")
+
+# plot marginal effects of specifc predictors
+plot_model(lr, type = "int")
+
+# Diagnostics
+plot_model(lr, show.values = TRUE, type = "diag")
+
+# plot random effects
+plot_model(lr, type = "re") #show.values = TRUE)
+```
+
+```{r}
+# save plot we want to file
+# fixed effect estimates + CIs
+p = plot_model(lr, show.values = TRUE, type = "est", value.offset = .4, axis.lim= c(.2,5))
+if (op){tiff("dundun_perceptionLogisticModel.tiff", units="in", width=11, height=8, res=300)}
+p 
+# p + theme_blank()
+# p + theme_sjplot2()
+# p + theme_minimal()
+
+```
+
+
+```{r}
+# check if overparameterized 
+print(rePCA(lr)) #not overparameterized
+
+
+# Do F test for model
+print(Anova(lr))
+
+# Output table with fixed and random effect results
+sjPlot::tab_model(lr, 
+                  show.re.var= TRUE) 
+
+#print(r2beta(lr, method = "nsj")) # variance explained by each fixed effect
+```
+
+
+
