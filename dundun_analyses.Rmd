@@ -31,9 +31,10 @@ library(magick)
 library(PEIP)
 library(gplots)
 library(heatmap.plus)
+library(gridExtra)
 ```
 
-# Load required data and clean it up a bit 
+# Load required data
 NOTE: USER TODO: set files paths appropriately on your machine
 ```{r}
 # load participant and stimulus data
@@ -47,22 +48,18 @@ pconf = read_excel("~/Documents/Projects/dundun/Data/dundun_confidence.xlsx")
 outpath = "~/Documents/Projects/dundun/Figures/"
 op = 0 #flag whether to output plots to file (1) or plot them in line
 
-########################################################################################
-# clean up and add a few columns we might want to use
-########################################################################################
+```
+
+# Do some cleaning up of columns of interest
+```{r}
 
 #pall = subset(pall, select = -c(...1) ) # don't need first column with participant numbers (as index corresponeds to participant)
 colnames(pall)[1] = 'Participant' 
 colnames(smeans)[1] = 'Stimulus' 
 
-# add other metrics of interest to pmeans
-pmeans$bias = -(pmeans$Hit_rate_H + pmeans$FA_rate_F)/2
-pmeans$accuracy = 100 * ((pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)`)/(pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)` + pmeans$False_Alarm + pmeans$Miss))
-pmeans$FNR_akaMiss = 100 * (pmeans$Miss / (pmeans$Miss + pmeans$Hits_Music))
-pmeans$FPR_akaFA = 100 * (pmeans$False_Alarm / (pmeans$False_Alarm + pmeans$`Correct_Rejection (Speech)`))
-
 # sum current and past instrument playing to get one measure of instrument playing 
 pinfo$INST = pinfo$PAST.INST + pinfo$CURRENT.INST
+
 
 ########################################################################################
 # clean up language categories
@@ -148,10 +145,54 @@ pmeans$Fam_cols = pmeans$Familiarity
 pmeans$Fam_cols[pmeans$Fam_cols == 1] ='gray'
 pmeans$Fam_cols[pmeans$Fam_cols == 2] ='#e69d00'
 
-########################################################################################
-# Create long form table of participant responses for future modeling
-########################################################################################
+```
 
+# calculate other signal processing / binary classification metrics we might want to use
+```{r}
+# bias
+pmeans$bias = -(pmeans$Hit_rate_H + pmeans$FA_rate_F)/2
+
+# accuracy
+pmeans$accuracy = 100 * ((pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)`)/(pmeans$Hit_rate_H + pmeans$`Correct_Rejection (Speech)` + pmeans$False_Alarm + pmeans$Miss))
+
+# FNR
+pmeans$FNR_akaMiss = 100 * (pmeans$Miss / (pmeans$Miss + pmeans$Hits_Music))
+
+# FPR
+pmeans$FPR_akaFA = 100 * (pmeans$False_Alarm / (pmeans$False_Alarm + pmeans$`Correct_Rejection (Speech)`))
+
+# d prime (d′ = Z(hit rate) − Z(false alarm rate))
+# d' music (already in table)
+# d' speech (in this case it would be CR rate - miss rate)
+pmeans$d_speech = pmeans$CR_rate - pmeans$Miss
+
+# NOTE: d′ assumes that the standard deviations for signal and noise are equal, in our case they likely are not. Let's check
+print(sd(pmeans$Hits_Music))
+print(sd(pmeans$`Correct_Rejection (Speech)`))
+# t test confirms that they are not.. 
+print(t.test(pmeans$Hits_Music, pmeans$`Correct_Rejection (Speech)`))
+
+
+# mcc 
+# https://en.wikipedia.org/wiki/Matthews_correlation_coefficient
+# first the numerator
+pmeans$numerator = ( (pmeans$Hits_Music * pmeans$`Correct_Rejection (Speech)`) - (pmeans$Miss * pmeans$False_Alarm) )
+# now denominator
+pmeans$denominator = sqrt((pmeans$Hits_Music + pmeans$False_Alarm) *   (pmeans$Hits_Music+pmeans$Miss) * (pmeans$`Correct_Rejection (Speech)` + pmeans$False_Alarm) * (pmeans$`Correct_Rejection (Speech)`+pmeans$Miss))
+pmeans
+# NOTE will have zero in denominator for e.g. people who FA everything. Set this to 1 (as recommended)
+pmeans$denominator[pmeans$denominator==0] = 1
+# now calculate mcc
+pmeans$mcc = pmeans$numerator / pmeans$denominator
+
+
+
+```
+
+
+
+# Create long form table of participant responses for future modeling
+```{r}
 # convert into long form 
 prating_long = pall %>%
   pivot_longer(!Participant, names_to = "Stimulus", values_to = "Rating")
@@ -260,13 +301,13 @@ print("Average FA rate (norm) across participants")
 print(mean(pmeans$FA_rate_F))
 print(sd(pmeans$FA_rate_F))
 
-print("Average d' across participants")
-print(mean(pmeans$d))
-print(sd(pmeans$d))
+print("Average mcc across participants")
+print(mean(pmeans$mcc))
+print(sd(pmeans$mcc))
 
 # run t-test on d' for familiar vs. unfamilar participants
-tres = t.test(pmeans$d[pmeans$Familiarity==2], pmeans$d[pmeans$Familiarity==1], paired=FALSE)
-d = cohen.d(pmeans$d[pmeans$Familiarity==2], pmeans$d[pmeans$Familiarity==1], paired=FALSE, within=FALSE)
+tres = t.test(pmeans$mcc[pmeans$Familiarity==2], pmeans$mcc[pmeans$Familiarity==1], paired=FALSE)
+d = cohen.d(pmeans$mcc[pmeans$Familiarity==2], pmeans$mcc[pmeans$Familiarity==1], paired=FALSE, within=FALSE)
 print(tres)
 print(d)
 print("Difference between means")
@@ -397,18 +438,42 @@ heatmap.2(data.matrix(for_hm),
         Colv=FALSE,
 )
 
+```
 
+```{r}
 ########################################################################################
-# Create box plot (with underlying points) for d'
+# Create box plot (with underlying points) for  mcc
 ########################################################################################
 
-# recode familiarity to display how we want on plot
-pmeans$Familiarity[pmeans$Familiarity==1]<-"Unfamiliar"
-pmeans$Familiarity[pmeans$Familiarity==2]<-"Familiar"
-pmeans$Familiarity = as.factor(pmeans$Familiarity)
-
-if (op){tiff("dundun_dPrime.tiff", units="in", width=5, height=7, res=300)}
+if (op){tiff("dundun_mcc.tiff", units="in", width=5, height=7, res=300)}
 pmeans %>%
+  ggplot( aes(x=Familiarity, y=mcc, group=Familiarity, fill=Familiarity, color = Familiarity)) +
+    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
+    scale_color_manual(values=c("black", "black")) +
+    scale_fill_manual(values=c("#e69d00", "grey")) +
+    geom_jitter(size=2, alpha=0.3) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      text = element_text(size=20, color="black"),
+      panel.grid.minor.y = element_blank(),
+    ) +
+    ylim(-1.1, 1.1) + 
+    xlab("") +
+    ylab("MCC")
+```
+
+
+```{r}
+########################################################################################
+# Create box plot (with underlying points) for d' for both speech and music 
+########################################################################################
+
+op = 1
+if (op){tiff("dundun_dPrime_sm.tiff", units="in", width=7, height=7, res=300)}
+
+p1 = 
+  pmeans %>%
   ggplot( aes(x=Familiarity, y=d, group=Familiarity, fill=Familiarity, color = Familiarity)) +
     geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
     scale_color_manual(values=c("black", "black")) +
@@ -420,11 +485,30 @@ pmeans %>%
       text = element_text(size=20, color="black"),
       panel.grid.minor.y = element_blank(),
     ) +
-  
+    ylim(-10,5) +
     xlab("") +
-    ylab("d'")
-```
+    ylab("d' music")
 
+p2 = 
+  pmeans %>%
+  ggplot( aes(x=Familiarity, y=d_speech, group=Familiarity, fill=Familiarity, color = Familiarity)) +
+    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
+    scale_color_manual(values=c("black", "black")) +
+    scale_fill_manual(values=c("#e69d00", "grey")) +
+    geom_jitter(size=2, alpha=0.3) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      text = element_text(size=20, color="black"),
+      panel.grid.minor.y = element_blank(),
+    ) +
+    ylim(-10,5) +
+    xlab("") +
+    ylab("d' speech")
+
+  
+grid.arrange(p1, p2, nrow = 1)
+```
 
 
 
@@ -436,7 +520,7 @@ We ultimately want to predict participants' perception from the acoustic and par
 # remove ratio diff and other columns we don't need 
 acoust_feats = smeans[ , -which(names(smeans) %in% c("Filename","Stimulus", "Category", "ratioDiff"))] # drop label columns and ones not using
 # rename cols for how we want to display in fig
-acoust_feats = acoust_feats %>% rename(intsensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o)
+acoust_feats = acoust_feats %>% rename(intensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o)
 png("dundun_acousticCorrs.png", units="in", width=11, height=8, res=300)
 chart.Correlation(acoust_feats, histogram=TRUE, pch=25, text.panel=labs)
 ```
@@ -497,15 +581,33 @@ lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_pea
 
 summary(lr)
 
+print(car::vif(lr))
+
+```
+None of our VIFs are over 5 so we should be ok to keep all predictors.
+
+Let's calculate some classification metrics of interest for the model 
+```{r}
+
 long_all$p <- as.numeric(predict(lr, type="response")>0.5)
 print("Prediction Accuracy:")
 print(mean(long_all$p==long_all$Rating))
-table(long_all$p,long_all$Rating)
+cm = table(long_all$p,long_all$Rating)
+print(cm)
 
-print(car::vif(lr))
+tp = 1635
+tn = 1111
+fp = 247
+fn = 217
+# mcc = ( (cm[4]*cm[1]) - (cm[3]*cm[2]) ) / sqrt( (cm[4]+cm[3])*(cm[4]+cm[2])*(cm[1]+cm[3])*(cm[1]+cm[2]))
+# NOTE: hard-coding this because not sure how to deal with the L formatting from the cm table. Needed quick answer. TODO fix eventually 
+mcc = ((tp*tn) - (fp*fn)) / sqrt( (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn) )
+
+print("MCC:")
+print(mcc)
 ```
 
-None of our VIFs are over 5 so we should be ok to keep all predictors.
+
 Now let's make some plots 
 ```{r}
 # plot residuals
