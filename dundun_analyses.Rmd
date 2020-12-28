@@ -41,6 +41,7 @@ NOTE: USER TODO: set files paths appropriately on your machine
 pmeans = read_excel("~/Documents/Projects/dundun/Data/dundun_participantMeans_200804.xls")
 pinfo = read_excel("~/Documents/Projects/dundun/Data/participant_info.xlsx")
 smeans = read.csv("~/Documents/Projects/dundun/Data/dundun_acoustFeat_means_absDiffs.csv")
+pc = read.csv("~/Documents/Projects/dundun/Data/pulseClarity.csv")
 pall = read_excel("~/Documents/Projects/dundun/Data/Dundun_participants_categorization.xlsx")
 pconf = read_excel("~/Documents/Projects/dundun/Data/dundun_confidence.xlsx")
 
@@ -59,6 +60,9 @@ colnames(smeans)[1] = 'Stimulus'
 
 # sum current and past instrument playing to get one measure of instrument playing 
 pinfo$INST = pinfo$PAST.INST + pinfo$CURRENT.INST
+
+# combine pulse clarity info with smeans
+smeans$pulseClarity = pc$pulseClarity
 
 
 ########################################################################################
@@ -445,6 +449,11 @@ heatmap.2(data.matrix(for_hm),
 # Create box plot (with underlying points) for  mcc
 ########################################################################################
 
+# recode familiarity to display how we want on plot
+pmeans$Familiarity[pmeans$Familiarity==1]<-"Unfamiliar"
+pmeans$Familiarity[pmeans$Familiarity==2]<-"Familiar"
+pmeans$Familiarity = as.factor(pmeans$Familiarity)
+
 if (op){tiff("dundun_mcc.tiff", units="in", width=5, height=7, res=300)}
 pmeans %>%
   ggplot( aes(x=Familiarity, y=mcc, group=Familiarity, fill=Familiarity, color = Familiarity)) +
@@ -469,7 +478,7 @@ pmeans %>%
 # Create box plot (with underlying points) for d' for both speech and music 
 ########################################################################################
 
-op = 1
+
 if (op){tiff("dundun_dPrime_sm.tiff", units="in", width=7, height=7, res=300)}
 
 p1 = 
@@ -521,7 +530,7 @@ We ultimately want to predict participants' perception from the acoustic and par
 acoust_feats = smeans[ , -which(names(smeans) %in% c("Filename","Stimulus", "Category", "ratioDiff"))] # drop label columns and ones not using
 # rename cols for how we want to display in fig
 acoust_feats = acoust_feats %>% rename(intensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o)
-png("dundun_acousticCorrs.png", units="in", width=11, height=8, res=300)
+if (op){png("dundun_acousticCorrs.png", units="in", width=11, height=8, res=300)}
 chart.Correlation(acoust_feats, histogram=TRUE, pch=25, text.panel=labs)
 ```
 Amp diff has a very high correlation with o2o and amp. Might need to get rid. Will check VIFs.  
@@ -547,6 +556,7 @@ long_all$ratio = scale(long_all$ratio, center=TRUE, scale=TRUE)
 long_all$ratioDiff = scale(long_all$ratioDiff, center=TRUE, scale=TRUE)
 long_all$o2o = scale(long_all$o2o, center=TRUE, scale=TRUE)
 long_all$AMS_peak = scale(long_all$AMS_peak, center=TRUE, scale=TRUE)
+long_all$pulseClarity = scale(long_all$pulseClarity, center=TRUE, scale=TRUE)
 # NOTE: Let's not use ratioDiff because there is confusion from Tina (see Matlab code / email) about what that is.
 
 # model without familiarity interactions   
@@ -572,7 +582,7 @@ long_all$AMS_peak = scale(long_all$AMS_peak, center=TRUE, scale=TRUE)
 # print(car::vif(lr))
 
 # final with terms with high VIF deleted
-lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + + pitchDiff + pitchDiff*FAMILIARITY + entDiff + entDiff*FAMILIARITY + entDiff*FAMILIARITY + ratio + ratio*FAMILIARITY +(1|Stimulus) + (1|Participant), 
+lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + pulseClarity + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + + pitchDiff + pitchDiff*FAMILIARITY + entDiff + entDiff*FAMILIARITY + entDiff*FAMILIARITY + ratio + ratio*FAMILIARITY + pulseClarity*FAMILIARITY +(1|Stimulus) + (1|Participant), 
             data=long_all,
             family=binomial(link="logit"),
             na.action=na.exclude,
@@ -595,10 +605,10 @@ print(mean(long_all$p==long_all$Rating))
 cm = table(long_all$p,long_all$Rating)
 print(cm)
 
-tp = 1635
-tn = 1111
-fp = 247
-fn = 217
+tp = 1636
+tn = 1113
+fp = 246
+fn = 215
 # mcc = ( (cm[4]*cm[1]) - (cm[3]*cm[2]) ) / sqrt( (cm[4]+cm[3])*(cm[4]+cm[2])*(cm[1]+cm[3])*(cm[1]+cm[2]))
 # NOTE: hard-coding this because not sure how to deal with the L formatting from the cm table. Needed quick answer. TODO fix eventually 
 mcc = ((tp*tn) - (fp*fn)) / sqrt( (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn) )
@@ -632,6 +642,7 @@ plot_model(lr, type = "re") #show.values = TRUE)
 ```{r}
 # save plot we want to file
 # fixed effect estimates + CIs
+
 p = plot_model(lr, show.values = TRUE, type = "est", value.offset = .4, axis.lim= c(.2,5))
 if (op){tiff("dundun_perceptionLogisticModel.tiff", units="in", width=11, height=8, res=300)}
 p 
