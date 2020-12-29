@@ -179,6 +179,7 @@ print(t.test(pmeans$Hits_Music, pmeans$`Correct_Rejection (Speech)`))
 
 # mcc 
 # https://en.wikipedia.org/wiki/Matthews_correlation_coefficient
+# https://bmcgenomics.biomedcentral.com/articles/10.1186/s12864-019-6413-7#citeas
 # first the numerator
 pmeans$numerator = ( (pmeans$Hits_Music * pmeans$`Correct_Rejection (Speech)`) - (pmeans$Miss * pmeans$False_Alarm) )
 # now denominator
@@ -454,13 +455,14 @@ pmeans$Familiarity[pmeans$Familiarity==1]<-"Unfamiliar"
 pmeans$Familiarity[pmeans$Familiarity==2]<-"Familiar"
 pmeans$Familiarity = as.factor(pmeans$Familiarity)
 
-if (op){tiff("dundun_mcc.tiff", units="in", width=5, height=7, res=300)}
+if (op){tiff("dundun_mcc2.tiff", units="in", width=5, height=7, res=300)}
 pmeans %>%
   ggplot( aes(x=Familiarity, y=mcc, group=Familiarity, fill=Familiarity, color = Familiarity)) +
-    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
+   # geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
+  geom_violin(draw_quantiles = c(.25,.5,.75)) +
     scale_color_manual(values=c("black", "black")) +
     scale_fill_manual(values=c("#e69d00", "grey")) +
-    geom_jitter(size=2, alpha=0.3) +
+    geom_jitter(size=2, alpha=0.3, width=.2) +
     theme_classic() +
     theme(
       legend.position="none",
@@ -473,53 +475,6 @@ pmeans %>%
 ```
 
 
-```{r}
-########################################################################################
-# Create box plot (with underlying points) for d' for both speech and music 
-########################################################################################
-
-
-if (op){tiff("dundun_dPrime_sm.tiff", units="in", width=7, height=7, res=300)}
-
-p1 = 
-  pmeans %>%
-  ggplot( aes(x=Familiarity, y=d, group=Familiarity, fill=Familiarity, color = Familiarity)) +
-    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
-    scale_color_manual(values=c("black", "black")) +
-    scale_fill_manual(values=c("#e69d00", "grey")) +
-    geom_jitter(size=2, alpha=0.3) +
-    theme_classic() +
-    theme(
-      legend.position="none",
-      text = element_text(size=20, color="black"),
-      panel.grid.minor.y = element_blank(),
-    ) +
-    ylim(-10,5) +
-    xlab("") +
-    ylab("d' music")
-
-p2 = 
-  pmeans %>%
-  ggplot( aes(x=Familiarity, y=d_speech, group=Familiarity, fill=Familiarity, color = Familiarity)) +
-    geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
-    scale_color_manual(values=c("black", "black")) +
-    scale_fill_manual(values=c("#e69d00", "grey")) +
-    geom_jitter(size=2, alpha=0.3) +
-    theme_classic() +
-    theme(
-      legend.position="none",
-      text = element_text(size=20, color="black"),
-      panel.grid.minor.y = element_blank(),
-    ) +
-    ylim(-10,5) +
-    xlab("") +
-    ylab("d' speech")
-
-  
-grid.arrange(p1, p2, nrow = 1)
-```
-
-
 
 # Build predictive model
 We ultimately want to predict participants' perception from the acoustic and participant features. Therefore we first need to get a sense of the relationships among predictors. 
@@ -528,12 +483,43 @@ We ultimately want to predict participants' perception from the acoustic and par
 ```{r}
 # remove ratio diff and other columns we don't need 
 acoust_feats = smeans[ , -which(names(smeans) %in% c("Filename","Stimulus", "Category", "ratioDiff"))] # drop label columns and ones not using
-# rename cols for how we want to display in fig
-acoust_feats = acoust_feats %>% rename(intensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o)
+
+# rearrange ams to be first (how we want in paper)
+acoust_feats <- acoust_feats %>%
+     select(AMS_peak, everything())
+
+# rename cols for how we want to display in paper
+acoust_feats = acoust_feats %>% rename(intensity = amp, intensity_chg = ampDiff, pitch_chg = pitchDiff, entropy = ent, entropy_chg = entDiff, IOI = o2o, pulse_clarity = pulseClarity)
 if (op){png("dundun_acousticCorrs.png", units="in", width=11, height=8, res=300)}
 chart.Correlation(acoust_feats, histogram=TRUE, pch=25, text.panel=labs)
 ```
 Amp diff has a very high correlation with o2o and amp. Might need to get rid. Will check VIFs.  
+```{r} 
+# quick plot of distribution of pulse clarity
+tp = smeans
+tp$Category[1:15] = "Music"
+tp$Category[16:30] = "Speech"
+
+if (op){tiff("dundun_pulseClarity.tiff", units="in", width=5, height=7, res=300)}
+
+j = ggplot(data=tp,aes(x=Category, y=pulseClarity, group=Category,fill=Category, colour=Category))+
+  geom_violin(draw_quantiles = .5) +
+  #geom_boxplot(outlier.shape = NA) +
+  #geom_point() +
+  geom_jitter(width=.1) +
+    theme_classic() +
+    theme(
+      legend.position="none",
+      text = element_text(size=20, color="black"),
+      panel.grid.minor.y = element_blank(),
+    ) +
+    xlab("") +
+    ylim(0,.5) +
+    ylab("Pulse Clarity")
+j + scale_fill_manual(values=c("#0000FF", "#FF0000")) + scale_color_manual(values=c("#000000", "#000000"))
+
+
+```
 
 
 ```{r}
@@ -557,19 +543,6 @@ long_all$ratioDiff = scale(long_all$ratioDiff, center=TRUE, scale=TRUE)
 long_all$o2o = scale(long_all$o2o, center=TRUE, scale=TRUE)
 long_all$AMS_peak = scale(long_all$AMS_peak, center=TRUE, scale=TRUE)
 long_all$pulseClarity = scale(long_all$pulseClarity, center=TRUE, scale=TRUE)
-# NOTE: Let's not use ratioDiff because there is confusion from Tina (see Matlab code / email) about what that is.
-
-# model without familiarity interactions   
-# lr <- glmer(Rating ~ FAMILIARITY + Confidence +
-#               amp + ampDiff + pitch + pitchDiff + ent + entDiff + o2o + ratio + 
-#               AMS_peak + (1|Stimulus) + (1|Participant), 
-#              data=long_all,
-#              family=binomial(link="logit"),
-#              na.action=na.exclude,
-#              control=glmerControl(optimizer="bobyqa",
-#                                   optCtrl=list(maxfun=2e5)))
-# summary(lr)
-# print(car::vif(lr))
 
 # full model with familiarity interactions
 # lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + entDiff + ampDiff + ampDiff*FAMILIARITY + pitchDiff + pitchDiff*FAMILIARITY + entDiff*FAMILIARITY + o2o + o2o*FAMILIARITY + ratio + ratio*FAMILIARITY +(1|Stimulus) + (1|Participant), 
@@ -582,7 +555,7 @@ long_all$pulseClarity = scale(long_all$pulseClarity, center=TRUE, scale=TRUE)
 # print(car::vif(lr))
 
 # final with terms with high VIF deleted
-lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + pulseClarity + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + + pitchDiff + pitchDiff*FAMILIARITY + entDiff + entDiff*FAMILIARITY + entDiff*FAMILIARITY + ratio + ratio*FAMILIARITY + pulseClarity*FAMILIARITY +(1|Stimulus) + (1|Participant), 
+lr <- glmer(Rating ~ FAMILIARITY + Confidence + Confidence*FAMILIARITY + AMS_peak + AMS_peak*FAMILIARITY +  amp + amp*FAMILIARITY + pitch + pitch*FAMILIARITY + ent + ent*FAMILIARITY + + pitchDiff + pitchDiff*FAMILIARITY + entDiff + entDiff*FAMILIARITY + entDiff*FAMILIARITY + ratio + ratio*FAMILIARITY + pulseClarity + pulseClarity*FAMILIARITY +(1|Stimulus) + (1|Participant), 
             data=long_all,
             family=binomial(link="logit"),
             na.action=na.exclude,
