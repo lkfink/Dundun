@@ -11,7 +11,7 @@ ___
 ## Overview
 
 - [Project Description](#summary)
-- [Listener Classification](#Classification-of-dundun-performance-as-speech-or-music)
+- [Classification of dundun performance as speech-like or music-like](#Classification-of-dundun-performance-as-speech-or-music)
 - [Predictors of Listener Classification](#Acoustic-features-and-listener-familiarity-predict-classification)
 - [Contact](#contact)
 
