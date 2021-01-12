@@ -4,20 +4,18 @@
 
 If using anything from this repository, please cite the paper.
 
-Note that code to extract the acoustic features reported in the paper is not provided in this repository. The table of acoustic means required to reproduce all statistical analyses is provided in the Data directory, as are all relevant participant data. 
-
 
 ___
 ## Overview
 
-- [Project Description](#summary)
+- [Project Description](#Abstract)
 - [Classification of dundun performance as speech-like or music-like](#Classification-of-dundun-performance-as-speech-or-music)
 - [Predictors of Listener Classification](#Acoustic-features-and-listener-familiarity-predict-classification)
 - [Contact](#contact)
 
 ___
-## Summary
-It seems trivial to identify sound sequences as music or speech, particularly when the sequences come from different sound sources, such as an orchestra vs. a voice. Can we also easily distinguish these categories when the sequence comes from the same sound source? On the basis of which acoustic features? We investigated these questions by examining listeners' classification of sound sequences performed by an instrument intertwining both speech and music: the dùndún talking drum. The dùndún is commonly used in south-west Nigeria as a musical instrument but is also perfectly fit for linguistic usage in what has been described as speech surrogates in Africa. 107 participants from diverse geographical locations, aged from 18 to 75 years (M = 39.22, SD = 15.06), including 51 who were familiar with the dùndún, took part in an online experiment. They listened to 30 dùndún samples of about 7 seconds long performed either as music or speech surrogate (n = 15 each) by a professional musician, and were asked to classify each sample as music or speech-like performance. The classification task revealed the ability of the listeners to identify the samples as intended by the performer, particularly when they were familiar with the dùndún. A logistic regression predicting participants’ classification of the samples from the acoustic features confirmed the perceptual relevance of intensity, timbre, and timing, while showing the interaction of familiarity with features such as pitch. This study provides empirical evidence supporting the discriminating role of acoustic features and the modulatory role of familiarity in teasing apart speech and music.
+## Abstract
+It seems trivial to identify sound sequences as music or speech, particularly when the sequences come from different sound sources, such as an orchestra and a human voice. Can we also easily distinguish these categories when the sequence comes from the same sound source? On the basis of which acoustic features? We investigated these questions by examining listeners' classification of sound sequences performed by an instrument intertwining both speech and music: the dùndún talking drum. The dùndún is commonly used in south-west Nigeria as a musical instrument but is also perfectly fit for linguistic usage in what has been described as speech surrogates in Africa. 107 participants from diverse geographical locations, including 51 who were familiar with the dùndún, took part in an online experiment. They listened to 30 dùndún samples of about 7 seconds long, performed either as music or speech surrogate (n = 15 each) by a professional musician, and were asked to classify each sample as music or speech-like. The classification task revealed the ability of the listeners to identify the samples as intended by the performer, particularly when they were familiar with the dùndún. A logistic regression predicting participants’ classification of the samples from several acoustic features confirmed the perceptual relevance of intensity, timbre, and timing, while showing the interaction of familiarity with features such as pitch. This study provides empirical evidence supporting the discriminating role of acoustic features and the modulatory role of familiarity in teasing apart speech and music.
 
 ___
 ## Classification of dundun performance as speech or music
