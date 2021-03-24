@@ -15,7 +15,8 @@ ___
 
 ___
 ## Abstract
-It seems trivial to identify sound sequences as music or speech, particularly when the sequences come from different sound sources, such as an orchestra and a human voice. Can we also easily distinguish these categories when the sequence comes from the same sound source? On the basis of which acoustic features? We investigated these questions by examining listeners' classification of sound sequences performed by an instrument intertwining both speech and music: the dùndún talking drum. The dùndún is commonly used in south-west Nigeria as a musical instrument but is also perfectly fit for linguistic usage in what has been described as speech surrogates in Africa. 107 participants from diverse geographical locations, including 51 who were familiar with the dùndún, took part in an online experiment. They listened to 30 dùndún samples of about 7 seconds long, performed either as music or speech surrogate (n = 15 each) by a professional musician, and were asked to classify each sample as music or speech-like. The classification task revealed the ability of the listeners to identify the samples as intended by the performer, particularly when they were familiar with the dùndún. A logistic regression predicting participants’ classification of the samples from several acoustic features confirmed the perceptual relevance of intensity, timbre, and timing, while showing the interaction of familiarity with features such as pitch. This study provides empirical evidence supporting the discriminating role of acoustic features and the modulatory role of familiarity in teasing apart speech and music.
+It seems trivial to identify sound sequences as music or speech, particularly when the sequences come from different sound sources, such as an orchestra and a human voice. Can we also easily distinguish these categories when the sequence comes from the same sound source? On the basis of which acoustic features? We investigated these questions by examining listeners' classification of sound sequences performed by an instrument intertwining both speech and music: the dùndún talking drum. The dùndún is commonly used in south-west Nigeria as a musical instrument but is also perfectly fit for linguistic usage in what has been described as speech surrogates in Africa. One hundred seven participants from diverse geographical locations (15 different mother tongues represented) took part in an online experiment. Fifty-one participants reported being familiar with the dùndún talking drum, 55% of those being speakers of Yorùbá. During the experiment, participants listened to 30 dùndún samples of about 7 seconds long, performed either as music or Yorùbá speech surrogate (n = 15 each) by a professional musician, and were asked to classify each sample as music or speech-like. The classification task revealed the ability of the listeners to identify the samples as intended by the performer, particularly when they were familiar with the dùndún. A logistic regression predicting participants’ classification of the samples from several acoustic features confirmed the perceptual relevance of intensity, timbre, and timing, while showing the interaction of familiarity with features such as pitch. This study provides empirical evidence supporting the discriminating role of acoustic features and the modulatory role of familiarity in teasing apart speech and music.
+
 
 ___
 ## Classification of dundun performance as speech or music
@@ -25,7 +26,7 @@ A confusion matrix for perceived vs. intended music and speech-like performances
 
 Given the imbalance in perceiving speech vs. music, and the statistical properties outlined in the Methods, our main metric of interest for participants’ performance on the task was the Matthews Correlation Coefficient (MCC). An MCC of 1 indicates perfect performance, 0 chance, and -1 perfect misclassification. Participants’ average MCC was 0.61 (+/- 0.33). Participants who were familiar with the dùndún exhibited a significantly higher MCC, compared to those who were unfamiliar with the dùndún (see C below). Also note that participants' familiarity it plotted in the left-hand color bar in A. 
 
-![image](/images/dundun_fig4_perception_violinMCC.png)
+![image](/images/dundun_fig5_rev1.png)
 
 ___
 ## Acoustic features and listener familiarity predict classification
@@ -33,7 +34,7 @@ In an effort to understand which acoustic features were most relevant in partici
 
 The figure below shows the odds ratios and confidence intervals for each fixed effect in the model. Fixed effects with an odds ratio less than 1 (red) indicate that a high value on that feature leads to the perception of speech. Odds ratios greater than 1 (blue) indicate that a high value on that feature leads to the perception of music. Overall, the model had a prediction accuracy of 86% and an MCC of 0.71. 
 
-![image](/images/dundun_fig5_perception_logisticMod.png)
+![image](/images/dundun_fig6_rev1.png)
 
 Greater pulse clarity predicted perception of music. On the note level, greater mean intensity predicted speech, while greater mean pitch predicted music. In terms of changes between notes, greater changes in pitch predicted speech, while greater changes in timbre predicted music. However, mean pitch and mean pitch change both interacted with participants’ familiarity in the opposite direction of the overall effects, suggesting that participants familiar with the dùndún process its pitch and pitch changes differently.
 
