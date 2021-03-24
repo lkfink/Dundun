@@ -36,39 +36,59 @@ library(gridExtra)
 
 # Load required data
 NOTE: USER TODO: set files paths appropriately on your machine
+Load participant and stimulus data
 ```{r}
-# load participant and stimulus data
-pmeans = read_excel("~/Documents/Projects/dundun/Data/dundun_participantMeans_200804.xls")
-pinfo = read_excel("~/Documents/Projects/dundun/Data/participant_info.xlsx")
-smeans = read.csv("~/Documents/Projects/dundun/Data/dundun_acoustFeat_means_absDiffs.csv")
-pc = read.csv("~/Documents/Projects/dundun/Data/pulseClarity.csv")
-pall = read_excel("~/Documents/Projects/dundun/Data/Dundun_participants_categorization.xlsx")
-pconf = read_excel("~/Documents/Projects/dundun/Data/dundun_confidence.xlsx")
+# STIMULUS DATA
+# mean values for each stimulus
+smeans = read.csv("~/Documents/Projects/dundun/Data/dundun_acoustFeat_means_absDiffs.csv") # all acoustic features from Tina
+colnames(smeans)[1] = 'Stimulus'  # fix this so it matches other tables
+pc = read.csv("~/Documents/Projects/dundun/Data/pulseClarity.csv") # pulse clarity values 
+# combine pulse clarity info with smeans
+smeans$pulseClarity = pc$pulseClarity
 
+# PARTICIPANT DATA
+# Cecilia now put all behavioral data in one table
+# Let's read that in and then recreate the tables we had formerly been using
+pdata = read_excel("~/Documents/Projects/dundun/Data/dundun_allTrials.xlsx") # read in all data
+pall = pdata[,1:31] # speech/music rating for every trial
+pconf = pdata[,c(1,32:61)] # confidence for every trial
+pinfo = pdata[,c(1,62:70)] # general background info about participants
+pinfo$INST = pinfo$PAST.INST + pinfo$CURRENT.INST # sum current and past instrument playing to get one measure of instrument playing 
+pmeans = pdata[,c(1,71:81)] # mean hit rates, etc. for each participant
+
+# OUTPUT FILE PATHS
 # Set output path for figures
 outpath = "~/Documents/Projects/dundun/Figures/"
 op = 0 #flag whether to output plots to file (1) or plot them in line
 
 ```
 
-# Do some cleaning up of columns of interest
+# Analyze differences between acoustic features
 ```{r}
+# t-tests for acoustic features
+i = 2
+for (col in smeans[,-1]){
+  print(colnames(smeans[i]))
+  # 1:15 are music, 16:30 are speech 
+  tres = t.test(col[1:15], col[16:30], paired=FALSE)
+  print(tres)
+  print("Mean diff")
+  print((tres$estimate[1]-tres$estimate[2]))
+  print("Eff size")
+  d = cohen.d(col[1:15], col[16:30], paired=FALSE, within=FALSE)
+  print(d)
+  print((tres$estimate[1]-tres$estimate[2])/sd(col))
+  i = i+1
+  print("-")
+  print("-")
+  print("-")
+}
 
-#pall = subset(pall, select = -c(...1) ) # don't need first column with participant numbers (as index corresponeds to participant)
-colnames(pall)[1] = 'Participant' 
-colnames(smeans)[1] = 'Stimulus' 
-
-# sum current and past instrument playing to get one measure of instrument playing 
-pinfo$INST = pinfo$PAST.INST + pinfo$CURRENT.INST
-
-# combine pulse clarity info with smeans
-smeans$pulseClarity = pc$pulseClarity
+```
 
 
-########################################################################################
-# clean up language categories
-########################################################################################
-
+# Look at languages represented in the participant pool and clean
+```{r}
 # first do some basic cleaning
 pinfo$NAT.LANG = tolower(pinfo$NAT.LANG)
 langs = pinfo$NAT.LANG
@@ -98,41 +118,9 @@ ie = c("german", "albanian", "serbian", "portoguese", "assamese", "english")
 st = "mandarin"
 aa = "hebrew"
 
-# loop through each language entry and assign to family
-# Also create binary column of 0s and 1s for Niger-Congo language, in case not enough variance in others
-pinfo$NC_binary = pinfo$FAMILIARITY # just create dummy col
-for (i in 1:length(pinfo$NAT.LANG.FAM)){
-  
-  if (pinfo$NAT.LANG.FAM[i] %in% nc){
-    pinfo$NAT.LANG.FAM[i] = "Niger-Congo"
-    pmeans$Lang_cols[i] = "#3f0d0d"
-    pinfo$NC_binary[i] = 1
-  }
-  else if (pinfo$NAT.LANG.FAM[i] %in% ie){
-    pinfo$NAT.LANG.FAM[i] = "Indo-European"
-    pmeans$Lang_cols[i] = "#b125ae"
-    pinfo$NC_binary[i] = 0
-  }
-  else if (pinfo$NAT.LANG.FAM[i] %in% st){
-    pinfo$NAT.LANG.FAM[i] = "Sino-Tibetan"
-    pmeans$Lang_cols[i] = "#e3d97d"
-    pinfo$NC_binary[i] = 0
-  }
-  else if (pinfo$NAT.LANG.FAM[i] %in% aa){
-    pinfo$NAT.LANG.FAM[i] = "Afro-Asiatic"
-    pmeans$Lang_cols[i] = "#7de39a"
-    pinfo$NC_binary[i] = 0
-  }
-  else {
-    pinfo$NAT.LANG.FAM[i] = "No response"
-    pmeans$Lang_cols[i] = "white"
-    pinfo$NC_binary[i] = 0
-  }
-}
-
-# create binary col for yoruba in case we want to look just at that
+# create binary col for yoruba 
 pinfo$yoruba_binary = pinfo$FAMILIARITY 
-for (i in 1:length(pinfo$NAT.LANG.FAM)){
+for (i in 1:length(pinfo$NAT.LANG)){
   if (pinfo$NAT.LANG[i] == "yoruba"){
     pinfo$yoruba_binary[i] = 1
   }
@@ -141,18 +129,38 @@ for (i in 1:length(pinfo$NAT.LANG.FAM)){
   }
 }
 
-########################################################################################
-# define colors for future plotting
-########################################################################################
 
-pmeans$Fam_cols = pmeans$Familiarity
+# define colors for future plotting
+# familiarity will be gold (1), gray (0)
+# yoruba will be black (1), white (0)
+pmeans$FAMILIARITY = pinfo$FAMILIARITY
+pmeans$Fam_cols = pinfo$FAMILIARITY
 pmeans$Fam_cols[pmeans$Fam_cols == 1] ='gray'
 pmeans$Fam_cols[pmeans$Fam_cols == 2] ='#e69d00'
+
+pmeans$yor_cols = pinfo$yoruba_binary
+pmeans$yor_cols[pmeans$yor_cols == 1] ='black'
+pmeans$yor_cols[pmeans$yor_cols == 0] ='white'
+```
+
+Check number of people familiar vs unfamiliar who speak Yoruba
+```{r}
+print("Number of Yoruba speakers")
+sum(pinfo$yoruba_binary)
+print("Number of unfamiliar Yoruba speakers:")
+sum(pinfo$yoruba_binary[pinfo$FAMILIARITY==1])
+print("Number of familiar Yoruba speakers:")
+sum(pinfo$yoruba_binary[pinfo$FAMILIARITY==2])
+print("Number of familiar participants:")
+print(sum(pinfo$FAMILIARITY-1))
+print("Percent familiar who speak Yoruba")
+print(28/51 *100)
 
 ```
 
 # calculate other signal processing / binary classification metrics we might want to use
 ```{r}
+
 # bias
 pmeans$bias = -(pmeans$Hit_rate_H + pmeans$FA_rate_F)/2
 
@@ -238,8 +246,6 @@ There are 15 unique languages represented in the dataset ("undecided" does not c
 
 
 ## Analyze participant responses
-The block below generates the subplots used to create Figure X in the paper.
-- heatmap (A), numbers for the table (B), d' plot / familiarity plot (C)
 ```{r}
 ########################################################################################
 # Print out matrix of different error types
@@ -247,9 +253,9 @@ The block below generates the subplots used to create Figure X in the paper.
 
 # look at total errors in subs vs stims
 # need to just get to 0 (no error) or 1 (error) 
-error_pall = subset(pall, select = -c(Participant) )
-error_pall[,1:15] = error_pall[,1:15] - 2
-error_pall[,16:30] = error_pall[,16:30] - 1
+error_pall = subset(pall, select = -c(Participant) ) # remove participant column
+error_pall[,1:15] = error_pall[,1:15] - 2 # subtract 2 from music (this results in 0 if no error)
+error_pall[,16:30] = error_pall[,16:30] - 1 # subtract 1 from speech (this results in 0 if no error)
 error_pall = abs(error_pall)
 
 # get some summary statistics
@@ -311,8 +317,8 @@ print(mean(pmeans$mcc))
 print(sd(pmeans$mcc))
 
 # run t-test on d' for familiar vs. unfamilar participants
-tres = t.test(pmeans$mcc[pmeans$Familiarity==2], pmeans$mcc[pmeans$Familiarity==1], paired=FALSE)
-d = cohen.d(pmeans$mcc[pmeans$Familiarity==2], pmeans$mcc[pmeans$Familiarity==1], paired=FALSE, within=FALSE)
+tres = t.test(pmeans$mcc[pmeans$FAMILIARITY==2], pmeans$mcc[pmeans$FAMILIARITY==1], paired=FALSE)
+d = cohen.d(pmeans$mcc[pmeans$FAMILIARITY==2], pmeans$mcc[pmeans$FAMILIARITY==1], paired=FALSE, within=FALSE)
 print(tres)
 print(d)
 print("Difference between means")
@@ -320,27 +326,17 @@ print(tres$estimate[1] - tres$estimate[2])
 
 ```
 
+For reviewer, check subgroup who was familiar but did not speak yoruba
 ```{r}
-# t-tests for acoustic features
-i = 2
-for (col in smeans[,-1]){
-  print(colnames(smeans[i]))
-  # 1:15 are music, 16:30 are speech 
-  tres = t.test(col[1:15], col[16:30], paired=FALSE)
-  print(tres)
-  print("Mean diff")
-  print((tres$estimate[1]-tres$estimate[2]))
-  print("Eff size")
-  d = cohen.d(col[1:15], col[16:30], paired=FALSE, within=FALSE)
-  print(d)
-  print((tres$estimate[1]-tres$estimate[2])/sd(col))
-  i = i+1
-  print("-")
-  print("-")
-  print("-")
-}
-
+# run t-test on d' for familiar non-yoruba vs. unfamilar participants
+tres = t.test(pmeans$mcc[pmeans$FAMILIARITY==2 & pmeans$yor_cols=="white"], paired=FALSE)
+d = cohen.d(pmeans$mcc[pmeans$FAMILIARITY==2], pmeans$mcc[pmeans$FAMILIARITY==1], paired=FALSE, within=FALSE)
+print(tres)
+print(d)
+print("Difference between means")
+print(tres$estimate[1] - tres$estimate[2])
 ```
+
 
 
 ```{r}
@@ -373,7 +369,10 @@ d1 = long_all[(long_all$Error == 1) & (long_all$FAMILIARITY==1),]
 d2 = long_all[(long_all$Error == 1) & (long_all$FAMILIARITY==2),]
 if (op){tiff(paste(outpath, "dundun_confFAM_MS.tiff", sep=""), units="in", width=4, height=3, res=300)}
 plot_conf_fam_hist(d1$Confidence, d2$Confidence)
-
+print("Unfamiliar")
+print(mean(d1$Confidence))
+print("Familiar")
+print(mean(d2$Confidence))
 
 ########################################################################################
 # speech --> music (FA)
@@ -386,6 +385,10 @@ d1 = long_all[(long_all$Error == -1) & (long_all$FAMILIARITY==1),]
 d12 = long_all[(long_all$Error == -1) & (long_all$FAMILIARITY==2),]
 if (op){tiff(paste(outpath, "dundun_confFAM_SM.tiff", sep=""), units="in", width=4, height=3, res=300)}
 plot_conf_fam_hist(d1$Confidence, d2$Confidence)
+print("Unfamiliar")
+print(mean(d1$Confidence))
+print("Familiar")
+print(mean(d2$Confidence))
 
 
 ########################################################################################
@@ -400,7 +403,10 @@ d1 = long_all[(long_all$Error == 0) & (long_all$Class == 2) & long_all$FAMILIARI
 d2 = long_all[(long_all$Error == 0) & (long_all$Class == 2) & long_all$FAMILIARITY == 2,]
 if (op){tiff(paste(outpath, "dundun_confFAM_MM.tiff", sep=""), units="in", width=4, height=3, res=300)}
 plot_conf_fam_hist(d1$Confidence, d2$Confidence)
-
+print("Unfamiliar")
+print(mean(d1$Confidence))
+print("Familiar")
+print(mean(d2$Confidence))
 
 ########################################################################################
 # hits speech (correct rejections)
@@ -413,7 +419,10 @@ if (op){tiff(paste(outpath, "dundun_confFAM_SS.tiff", sep=""), units="in", width
 d1 = long_all[(long_all$Error == 0) & (long_all$Class == 1) & long_all$FAMILIARITY == 1,]
 d2 = long_all[(long_all$Error == 0) & (long_all$Class == 1) & long_all$FAMILIARITY == 2,]
 plot_conf_fam_hist(d1$Confidence, d2$Confidence)
-
+print("Unfamiliar")
+print(mean(d1$Confidence))
+print("Familiar")
+print(mean(d2$Confidence))
 ```
 
 ```{r}
@@ -427,7 +436,7 @@ for_hm = pall[,-c(1,ncol(pall))]
 mean_stim_errors = colMeans(error_pall)
 for_hm = for_hm[,c(order(music_errors), order(speech_errors)+15)]
 
-if (op){tiff("dundunPerception_allSubs4.tiff", units="in", width=15, height=27, res=300)}
+if (op){tiff("dundunPerception_allSubs_rev1_yor.tiff", units="in", width=15, height=27, res=300)}
 heatmap.2(data.matrix(for_hm), 
         scale="none", 
         xlab="", ylab="", 
@@ -435,14 +444,30 @@ heatmap.2(data.matrix(for_hm),
         dendrogram="none", #"col",
         Rowv=FALSE,
         trace="none",
-        RowSideColors = pmeans$Fam_cols, 
+        #RowSideColors = pmeans$Fam_cols, 
+        RowSideColors = pmeans$yor_cols,
         key=FALSE,
         density.info = "none",
         cexCol = 2,
         labRow = FALSE,
         Colv=FALSE,
 )
+```
 
+Plot heatmap with yoruba and familiarity
+```{r}
+#if (op){png("dundunPerception_allSubs_rev1_yorFam.png", units="in", width=15, height=27, res=300)}
+heatmap.plus(data.matrix(for_hm), 
+        scale="none", 
+        xlab="", ylab="", 
+        col=c("red", "blue"), 
+        Rowv=NA,
+        RowSideColors = cbind(pmeans$yor_cols, pmeans$Fam_cols),  
+        cexCol = 2,
+        labRow = FALSE,
+        Colv=NA,
+        keep.dendro=FALSE
+)
 ```
 
 ```{r}
@@ -451,11 +476,12 @@ heatmap.2(data.matrix(for_hm),
 ########################################################################################
 
 # recode familiarity to display how we want on plot
+pmeans$Familiarity = pmeans$FAMILIARITY
 pmeans$Familiarity[pmeans$Familiarity==1]<-"Unfamiliar"
 pmeans$Familiarity[pmeans$Familiarity==2]<-"Familiar"
 pmeans$Familiarity = as.factor(pmeans$Familiarity)
 
-if (op){tiff("dundun_mcc2.tiff", units="in", width=5, height=7, res=300)}
+if (op){tiff("dundun_mcc2_rev1.tiff", units="in", width=5, height=7, res=300)}
 pmeans %>%
   ggplot( aes(x=Familiarity, y=mcc, group=Familiarity, fill=Familiarity, color = Familiarity)) +
    # geom_boxplot(outlier.shape = NA) + # don't plot outlier because will be ovelaid by jitter point (and look like two points instead of the one that it is)
@@ -530,6 +556,13 @@ long_all$INST = long_all$INST -2 # subtract 2 so logically have 0,1,2
 long_all$Confidence = long_all$Confidence-1 # again to have scale start at 0 no conf
 # Center these person level vars? No because it would confuse interpretation
 
+# remove the 4 participants who always answered music? TODO CHECK
+# does not make a difference
+# Participants 7, 9, 10, 51
+# test = long_all
+# test = subset(long_all, Participant != c(7, 9, 10,51))
+# long_all = test
+
 # Scale acoustic features
 # NOTE: Tina has already scaled acoustic features between 2nd and 98th percentiles in Matlab. However, we still get scale warnings if we include them the way they are.. so.. 
 long_all$amp = scale(long_all$amp, center=TRUE, scale=TRUE)
@@ -578,12 +611,12 @@ print(mean(long_all$p==long_all$Rating))
 cm = table(long_all$p,long_all$Rating)
 print(cm)
 
-tp = 1636
-tn = 1113
-fp = 246
-fn = 215
+tp = 1656
+tn = 1081
+fp = 247
+fn = 226
 # mcc = ( (cm[4]*cm[1]) - (cm[3]*cm[2]) ) / sqrt( (cm[4]+cm[3])*(cm[4]+cm[2])*(cm[1]+cm[3])*(cm[1]+cm[2]))
-# NOTE: hard-coding this because not sure how to deal with the L formatting from the cm table. Needed quick answer. TODO fix eventually 
+# NOTE: hard-coding this because not sure how to deal with the L formatting from the cm table. Needed quick answer. TODO fix eventually +!
 mcc = ((tp*tn) - (fp*fn)) / sqrt( (tp+fp)*(tp+fn)*(tn+fp)*(tn+fn) )
 
 print("MCC:")
@@ -617,7 +650,7 @@ plot_model(lr, type = "re") #show.values = TRUE)
 # fixed effect estimates + CIs
 
 p = plot_model(lr, show.values = TRUE, type = "est", value.offset = .4, axis.lim= c(.2,5))
-if (op){tiff("dundun_perceptionLogisticModel.tiff", units="in", width=11, height=8, res=300)}
+if (op){tiff("dundun_perceptionLogisticModel_rev1.tiff", units="in", width=11, height=8, res=300)}
 p 
 # p + theme_blank()
 # p + theme_sjplot2()
