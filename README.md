@@ -1,4 +1,4 @@
-# Dundun
+# Dùndún
 
 **Durojaye, C., Fink, L.**, Wald-Fuhrmann, M., Roeske, T. & Larrouy-Maestri, P. (submitted). Perception of Nigerian talking drum performances as speech-like vs. music-like: the role of familiarity and acoustic cues. 
 
@@ -20,7 +20,7 @@ It seems trivial to identify sound sequences as music or speech, particularly wh
 
 
 ___
-## Classification of dundun performance as speech or music
+## Classification of dùndún performance as speech or music
 Participants clearly separated the stimuli into two distinct speech vs. music categories that largely aligned with the intention of the performer. We observed that only four participants categorized every sample as music (solid blue rows near the bottom of the plot), whereas the large majority showed few confusions. Twelve participants exhibited perfect classification (top rows). In A of the figure below, within the speech and music categories, stimuli (columns) are sorted by the number of errors made per stimulus (i.e., the left-most column, stimulus 13M, was least often confused for speech, while 3M was most often confused for speech). Within the speech category, 13S was most clearly perceived as speech, while 5S was most often confused for music. Note that <a href="https://edmond.mpdl.mpg.de/imeji/collection/ovmWl7rLtIiGSv1v" target="_blank">`all dùndún recordings can be accessed online`</a>
 
 A confusion matrix for perceived vs. intended music and speech-like performances is plotted in B below. Overall, the average accuracy of participants on the task was 66%. The average rate people perceived speech when the performance was intended to be music was 12%, while the average rate at which people perceived music when it was intended to be speech was 29%. Collectively, these latter two rates indicate that participants were more likely to perceive speech as music than music as speech. The illustration of confidence ratings (underlying histograms in B, with ratings from 1 to 4) showed similar patterns, with high confidence even in the case of false classifications. Note, however, that the listeners who were unfamiliar (gray) with the dùndún might be less confident when judging speech stimuli (as intended by the performer and confirmed by the three experts).   
