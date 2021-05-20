@@ -1,6 +1,6 @@
 # Dùndún
 
-**Durojaye, C., Fink, L.**, Wald-Fuhrmann, M., Roeske, T. & Larrouy-Maestri, P. (2021). Perception of Nigerian Dùndún Talking Drum Performances as Speech-Like vs. Music-Like: The Role of Familiarity and Acoustic Cues. Front. Psychol. 12:652673. doi: 10.3389/fpsyg.2021.652673
+**Durojaye, C., Fink, L.**, Wald-Fuhrmann, M., Roeske, T. & Larrouy-Maestri, P. (2021). Perception of Nigerian Dùndún Talking Drum Performances as Speech-Like vs. Music-Like: The Role of Familiarity and Acoustic Cues. Front. Psychol. 12:652673. [https://doi.org/10.3389/fpsyg.2021.652673](https://doi.org/10.3389/fpsyg.2021.652673).
 
 If using anything from this repository, please cite the paper.
 
